@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <style>
+      body{
+        text-align: center;
+        background-color: cornsilk;
+      }
+      .hidden {
+        display: none;
+      }
+      div.tooltip {
+          color: #222;
+          background-color: #fff;
+          padding: .5em;
+          text-shadow: #f5f5f5 0 1px 0;
+          border-radius: 2px;
+          opacity: 0.9;
+          position: absolute;
+      }
+      .left-panel{
+        float: left;
+      }
+      .right-panel{
+        float: right;
+        text-align: center;
+        margin-right: 60px;
+      }
+      .chart {
+        height: 500px;
+        overflow: scroll;
+      }
+      .chart div {
+        font: 14px sans-serif;
+        text-align: right;
+        padding: 3px;
+        margin: 1px;
+        color: black;
+      }
+    </style>
+
+    <title>NYC TWITTER - DATA VISUALIZATION</title>
+
+  </head>
+  <body>
+    <h1>Twitter NYC</h1>
+    <div class="">
+      <div class="left-panel">
+        <h2>From where are the trends emerging?</h2>
+        <div id="tooltip"></div>
+      </div>
+      <div class="right-panel">
+        <h2>What are the trends?</h2>
+        <div class="chart"></div>
+      </div>
+    </div>
+  </body>
+
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script src="http://d3js.org/topojson.v1.min.js"></script>
+  <script src="nyc.geojson"></script>
+  <script src="http://bl.ocks.org/mbostock/raw/4090846/us.json"></script>
+  <script type="text/javascript" src="http://code.jquery.com/jquery-1.6.2.min.js"></script>
+  <script>
+
+    var width = 700,
+     height = 500;
+
+    hashtag_array = new Array;
+
+    function colors_google(n) {
+      var colors_g = ["#3366cc", "#dc3912", "#ff9900", "#109618", "#990099", "#0099c6", "#dd4477", "#66aa00", "#b82e2e", "#316395", "#994499", "#22aa99", "#aaaa11", "#6633cc", "#e67300", "#8b0707", "#651067", "#329262", "#5574a6", "#3b3eac"];
+      return colors_g[n % colors_g.length];
+    }
+
+    //cordinates
+    var bronx = [-73.8648, 40.8448];
+    var manhattan = [-73.9712, 40.7831];
+    var queens = [-73.7949, 40.7282];
+    var brooklyn = [-73.9442, 40.6782]; 
+    var harlem = [-73.9465, 40.8116];
+    var ny = [-74.0059, 40.7128];
+    var nyc = [-73.9854, 40.7488];
+    var new_york = [-73.8372, 40.5798];
+    var new_york_city = [-74.1215,40.6091];
+    var ny_city = [-73.9857, 40.6252];
+
+
+    coordinates = [bronx, manhattan, queens, brooklyn, harlem, ny, nyc, new_york, new_york_city, ny_city];
+
+    var svg = d3.select(".left-panel").append("svg")
+      .attr("width", width)
+      .attr("height", height);
+
+    //bar chart and tooltips
+    d3.csv("hashtags_by_place.csv",function(error, dataset){
+
+      var count_of = new Array;
+
+      dataset.forEach(function(d){
+        count_of.push(parseInt(d.countof));
+      });
+
+      dataset.forEach(function(d){
+        hashtag_array.push(d.regexp_split_to_table);
+      });
+
+      var linearScale = d3.scale.linear()
+          .domain([d3.min(count_of), d3.max(count_of)])
+          .range([0, 300]);
+
+      d3.select(".chart")
+        .selectAll("div")
+          .data(dataset)
+          .enter()
+          .append("div")
+          .attr("id",function(d,i){ return "bar_id_"+i; })
+          .style("width", function(d) { return linearScale(parseInt(d.countof)) + "px"; })
+          .text(function(d) { return d.regexp_split_to_table + " - " + d.countof; })
+          .style("background-color", function(d,j){ if(j <= 9){ return colors_google(j); }else{ return "#d9d9d9" }});
+
+    });
+
+
+    d3.json("nyc.geojson", function(error, nyb) {
+
+      var projection = d3.geo.mercator()
+              .center([-73.94, 40.70])
+              .scale(50000)
+              .translate([(width) / 2, (height)/2]);
+
+      var path = d3.geo.path()
+          .projection(projection);
+
+      var tooltip = d3.select('body').append('div')
+                .attr('class', 'hidden tooltip');
+
+      var g = svg.append("g").attr("id","map");
+
+      g.append("g")
+        .attr("id", "boroughs")
+        .selectAll(".state")
+        .data(nyb.features)
+        .enter().append("path")
+        .attr("class", function(d){ return d.properties.name; })
+        .attr("d", path)
+        .attr("borough", function(d) { return d.properties.borough; })
+        .on('mousemove', function(d) {
+            var mouse = d3.mouse(svg.node()).map(function(d) {
+                return parseInt(d);
+            });
+            tooltip.classed('hidden', false)
+                .attr('style', 'left:' + (mouse[0] + 15) +
+                        'px; top:' + (mouse[1] - 5) + 'px')
+                .html(d.properties.PO_NAME + "</br>" + d.properties.borough);
+        })
+        .on('mouseout', function() {
+            tooltip.classed('hidden', true)
+        })
+        .style("fill","#ccc")
+        .attr("stroke", "black");
+
+
+      // add circles to svg
+      var dots = d3.select("#map")
+        .selectAll("circle")
+        .data(coordinates).enter()
+        .append("circle")
+        .attr("cx", function (d) { return projection(d)[0]; })
+        .attr("cy", function (d) { return projection(d)[1]; })
+        .attr("r", function(d, i){ if(i == 0){ return 22; }else {return (19+i)/i;} })
+        .attr("fill", function(d,i){ return colors_google(i); })
+        .attr("id", function(d,i){ return "circle_"+i; })
+        .append("svg:title")
+        .text(function(d,i){ return hashtag_array[i]; });
+
+
+      d3.selectAll("circle").on('click',function(){
+          var this_color = d3.select(this).style("fill");
+          var this_id = d3.select(this).attr("id").split("circle_");
+          d3.selectAll(".chart div").style("background-color","#d9d9d9");
+          d3.selectAll(".chart div").style("border","none");
+          d3.select("#bar_id_" + this_id[1]).style("background-color",this_color);
+          d3.select("#bar_id_" + this_id[1]).style("border","2px solid black");
+        })
+        
+
+      });    
+  </script>
+</html>
